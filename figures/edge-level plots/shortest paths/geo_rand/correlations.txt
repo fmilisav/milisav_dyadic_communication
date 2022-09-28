@@ -1,0 +1,2 @@
+functional_connectivity_500_discov_wei: Spearman's r = -0.1, p-value = 0.0
+euclidean_distance_500_discov_wei: Spearman's r = 0.17, p-value = 0.0
