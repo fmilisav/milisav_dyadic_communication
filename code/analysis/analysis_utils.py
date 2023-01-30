@@ -2,15 +2,16 @@ import numpy as np
 from scipy.stats import zscore, spearmanr
 from scipy.optimize import curve_fit
 from sklearn.decomposition import PCA
+
+from netneurotools import datasets
+
+import pandas as pd
+
 import seaborn as sns
 sns.set_style("ticks")
 import matplotlib.pyplot as plt
 plt.rcParams['svg.fonttype'] = 'none'
 import plotly.graph_objects as go
-
-from netneurotools import datasets
-
-import pandas as pd
 
 import os
 import sys
@@ -42,12 +43,12 @@ def masking(x, comm_mod, mask = None, y = None):
 def bivar_hists(x, y, **kwargs):
 
     marginal_kws = {'element': 'step', 'alpha': 0.7}
-    cbar_kws_dict = {'label': 'count', 'orientation': 'horizontal', 'pad': 0.1}
+    cbar_kws = {'label': 'count', 'orientation': 'horizontal', 'pad': 0.1}
 
     g = sns.jointplot(x = x, y = y, kind = 'hist',
                       height = 10, ratio = 7,
                       marginal_kws = marginal_kws,
-                      cbar_kws = cbar_kws_dict,
+                      cbar_kws = cbar_kws,
                       cbar = True, bins = 'sqrt',
                       **kwargs)
     g.ax_joint.set(xlabel = 'empirical', ylabel = 'rewired')
@@ -101,6 +102,7 @@ def corr_nulls(x, y, key, nulls_idx):
 
     scale = '125' if '125' in key else '500'
     null_distribution = []
+    #y permutation
     nulls = y[nulls_idx[scale]].T
     for null in nulls:
         corr = spearmanr(x, null, nan_policy = 'omit')[0]
@@ -251,12 +253,12 @@ def nets_null_means_diff(labels, null_idx, nodes, x_label, y_label,
     permuted_labels = labels[null_idx]
     permuted_partition = np.zeros((nodes, nodes))
     for i in range(nodes):
-        for j in range(nodes):
+        for j in range(i + 1, nodes):
             #node pair belonging to network x
             if (permuted_labels[i] == x_label and
                 permuted_labels[j] == x_label):
                 permuted_partition[i, j] = 1
-            #node pair belonging to network x
+            #node pair belonging to network y
             elif (permuted_labels[i] == y_label and
                   permuted_labels[j] == y_label):
                 permuted_partition[i, j] = 2
@@ -276,7 +278,7 @@ def nets_null_means_diff(labels, null_idx, nodes, x_label, y_label,
     null_y_mean = np.nanmean(ordered_val[null_y_idx])
 
     #null difference of the means
-    null_means_diff = null_x_mean - null_y_mean
+    null_means_diff = null_y_mean - null_x_mean
     return null_means_diff
 
 #function for partitioning dyads within and between Yeo networks and

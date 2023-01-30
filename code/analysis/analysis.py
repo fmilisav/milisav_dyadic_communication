@@ -1,3 +1,7 @@
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.simplefilter(action='ignore', category=RuntimeWarning)
+
 import numpy as np
 import pandas as pd
 from scipy.stats import zscore, spearmanr, rankdata
@@ -8,11 +12,13 @@ sns.set_style("ticks")
 import matplotlib.pyplot as plt
 plt.rcParams['svg.fonttype'] = 'none'
 from matplotlib.patches import Rectangle
-import matplotlib.colors as mcolors
 from matplotlib import cm
+import matplotlib.colors as mcolors
 from netneurotools import datasets, plotting, freesurfer, stats
 from mayavi import mlab
 mlab.options.offscreen = True
+
+from nilearn.plotting import plot_connectome
 
 import os
 import sys
@@ -50,6 +56,44 @@ geo_norm_dist_dicts = pickle_load('geo_norm_dist_dicts')
 node_mean_norm_dist_dicts = pickle_load('node_mean_norm_dist_dicts')
 node_mean_geo_norm_dist_dicts = pickle_load('node_mean_geo_norm_dist_dicts')
 
+comm_mod = 'shortest paths'
+key = '500_discov_wei'
+
+norm_dists = {'rand': norm_dist_dicts[comm_mod][key],
+              'geo_rand': geo_norm_dist_dicts[comm_mod][key]}
+
+mono_idx = struct_den_dict[key].copy()
+#Mapping monosynaptic dyads to 1 and polysynaptic dyads to 0
+mono_idx[mono_idx > 0] = 1
+#Creating mask
+mono_idx = np.nonzero(mono_idx)
+
+poly_node_mean_dicts = {'rand': {comm_mod: {}},
+                        'geo_rand': {comm_mod: {}}}
+for null_mod, value in norm_dists.items():
+
+    value = value.copy()
+    #Taking out monosynaptic dyads
+    value[mono_idx] = np.nan
+    poly_node_mean_dicts[null_mod][comm_mod][key] = np.nanmean(value, axis = 1)
+
+#unexpectedly short path lengths
+neg_norm_dist = norm_dist_dicts[comm_mod][key].copy()
+neg_norm_dist[neg_norm_dist > 0] = np.nan
+poly_neg_norm_dist = neg_norm_dist.copy()
+poly_neg_norm_dist[mono_idx] = np.nan
+
+#cortical regions
+cortical500 = np.loadtxt(os.path.abspath('../../data/original_data/Lausanne/'
+                                         'cortical/cortical500.txt'))
+cor_idx500 = [i for i, val in enumerate(cortical500) if val == 1]
+
+#regional coordinates
+coords500 = np.load('../../data/original_data/Lausanne/coords/coords500.npy')
+
+#cortical coordinates
+cor_coords500 = coords500[cor_idx500]
+
 #figures output directory
 dir = os.path.abspath('../../figures')
 
@@ -57,7 +101,6 @@ pca_norm_dist_dicts = copy.deepcopy(norm_dist_dicts)
 mfpt_norm_dist_dicts = mfpt_zscore(pca_norm_dist_dicts)
 z_norm_dist_dicts = zscore_dist_dicts(mfpt_norm_dist_dicts, 'edge')
 pca_scores_dict = pca_dist_dicts(z_norm_dist_dicts, 'edge', dir)
-
 
 symmetrise(node_mean_norm_dist_dicts, mfpt_norm_dist_dicts)
 pca_node_mean_norm_dist_dicts = copy.deepcopy(node_mean_norm_dist_dicts)
@@ -84,7 +127,7 @@ denom=len(geo_norm_dist_dicts['shortest paths']['500_discov_wei'].ravel()) -1000
 print(('shorter than expected percentage (geometry-preserving): '
       '{}%').format(num/denom*100))
 
-#useful data for partition specificty analyses among Yeo networks
+#useful data for partition specificity analyses among Yeo networks
 partition_yeo_7_dict = {'idx': {}, 'yeo_7': {}, 'rsn_idx': {},
                         'reorder_idx': {}, 'w_b_yeo': {}}
 for res in (125, 500):
@@ -183,7 +226,7 @@ for comm_mod in comm_mods:
     else:
         norm = mcolors.TwoSlopeNorm(0, vmin = -3, vmax = 3)
 
-    value = norm_dist_dicts[comm_mod]['500_discov_wei']
+    value = norm_dist_dicts[comm_mod]['500_discov_wei'].copy()
     #Reordering by Yeo network affiliation
     reordered_val = value[idx][:, idx][reorder_idx][:, reorder_idx]
     ylabels = ['vis', 'sm', 'da', 'va', 'lim', 'fp', 'dm']
@@ -278,7 +321,7 @@ make_dir(hists_path)
 
 for key in ['500_discov_bin', '500_discov_wei']:
 
-    value = norm_dist_dicts['shortest paths'][key]
+    value = norm_dist_dicts['shortest paths'][key].copy()
 
     hists_split_path = os.path.join(hists_path, key + '.svg')
 
@@ -325,7 +368,39 @@ make_dir(node_mean_maps_path)
 pca_maps_path = os.path.join(brain_maps_path, 'pca_maps')
 make_dir(pca_maps_path)
 
-brain_maps = {'pc1_score': node_mean_norm_dist_dicts['pc1']['500_discov_wei']}
+#plotting unexpectedly short paths
+fig, ax = plt.subplots(1, figsize = (10, 10))
+ax.axis("off")
+output_file = str(os.path.join(node_mean_maps_path,
+                               'rand_std_spl_500_discov_wei_all.png'))
+plot_connectome(-1*neg_norm_dist, cor_coords500, node_color = 'black',
+                node_size = 1, edge_cmap = 'OrRd', edge_threshold = '99%',
+                annotate = False, alpha = 0.7,
+                edge_vmin = np.nanpercentile(-1*neg_norm_dist, 99),
+                edge_vmax = np.nanmax(-1*neg_norm_dist),
+                figure = fig, output_file = output_file)
+plt.close(fig)
+
+fig, ax = plt.subplots(1, figsize = (10, 10))
+ax.axis("off")
+output_file = str(os.path.join(node_mean_maps_path,
+                               'rand_std_spl_500_discov_wei_poly.png'))
+plot_connectome(-1*poly_neg_norm_dist, cor_coords500, node_color = 'black',
+                node_size = 1, edge_cmap = 'rainbow', edge_threshold = '99%',
+                annotate = False, alpha = 0.7,
+                edge_vmin = np.nanpercentile(-1*poly_neg_norm_dist, 99),
+                edge_vmax = np.nanmax(-1*poly_neg_norm_dist),
+                figure = fig, output_file = output_file)
+plt.close(fig)
+
+
+brain_maps = {'pc1_score': node_mean_norm_dist_dicts['pc1']['500_discov_wei'],
+              'node_mean_geo_rand_std_spl_500_discov_wei':
+              node_mean_geo_norm_dist_dicts['shortest paths']['500_discov_wei'],
+              'node_mean_rand_std_spl_500_discov_wei_poly':
+              poly_node_mean_dicts['rand']['shortest paths']['500_discov_wei'],
+              'node_mean_geo_rand_std_spl_500_discov_wei_poly':
+              poly_node_mean_dicts['geo_rand']['shortest paths']['500_discov_wei']}
 
 for key, value in node_mean_norm_dist_dicts['shortest paths'].items():
     brain_maps['node_mean_standardized_shortest_path_lengths_' + key] = value
@@ -340,10 +415,7 @@ for filename, brain_map in brain_maps.items():
     maps_path = pca_maps_path if 'pc' in filename else node_mean_maps_path
     brain_maps_split_path = os.path.join(maps_path, filename + '.svg')
 
-    node_mean_std_spl_key = '_'.join(filename.split('_')[-3:])
-    key = '500_discov_wei' if 'pc' in filename else node_mean_std_spl_key
-
-    n = 108 if '125' in key else 501
+    n = 108 if '125' in filename else 501
     #Switching the order of hemispheres for plotting
     switched_brain_map = brain_map.copy()
     switched_brain_map[:-n], switched_brain_map[-n:] = (brain_map[n:].copy(),
@@ -353,17 +425,17 @@ for filename, brain_map in brain_maps.items():
     if 'pc' in filename:
         vmin = -3
         vmax = 3
-    elif '500' in key and 'wei' in key:
+    elif '500' in filename and 'wei' in filename and 'geo' not in filename:
         vmin = 1.5
         vmax = 4.5
-    elif key == '125_discov_wei':
+    elif '125_discov_wei' in filename:
         vmin = 1
         vmax = 2
     else:
         vmin = 1
         vmax = 3
 
-    annot = cammoun125 if '125' in key else cammoun500
+    annot = cammoun125 if '125' in filename else cammoun500
     brain = plotting.plot_fsaverage(switched_brain_map, vmin = vmin,vmax = vmax,
                                     lhannot = annot.lh, rhannot = annot.rh,
                                     colormap = cmap, views = ['lat', 'med'],
@@ -380,7 +452,7 @@ data_dicts = {'rand': node_mean_norm_dist_dicts,
 for null_mod, data_dict in data_dicts.items():
     comm_mod = 'shortest paths'
     key = '500_discov_wei'
-    value = data_dict[comm_mod][key]
+    value = data_dict[comm_mod][key].copy()
 
     filename = null_mod + '_rank_difference.svg'
     closeness_maps_null_mod_path = os.path.join(closeness_maps_path, filename)
@@ -402,8 +474,9 @@ for null_mod, data_dict in data_dicts.items():
                                                      closeness_key + '.svg')
 
             #Switching the order of hemispheres for plotting
-            brain_map[:-501], brain_map[-501:] = (brain_map[501:].copy(),
-                                                  brain_map[:501].copy())
+            switched_brain_map = brain_map.copy()
+            switched_brain_map[:-501], switched_brain_map[-501:] = (brain_map[501:].copy(),
+                                                                    brain_map[:501].copy())
 
             data_kws = {'representation': "wireframe"}
             brain = plotting.plot_fsaverage(brain_map, vmin = 0, vmax = 1000,
@@ -469,7 +542,13 @@ for comm_mod in comm_mods:
 
             edge_plots_split_path = os.path.join(edge_plots_null_mod_path,
                                                  covar + '_' + key + '.png')
-            ax = histplot(x, y, xlabel, ylabel)
+            if comm_mod == 'pc1':
+                ax = sns.histplot(x = x, y = y, bins = 100, cbar = True,
+                                  cbar_kws = {'label': 'count',
+                                              'orientation': 'vertical'})
+                ax.set(xlabel = xlabel, ylabel = ylabel)
+                ax.set_box_aspect(1)
+            else: ax = histplot(x, y, xlabel, ylabel)
             sns.despine(ax = ax)
             save_plot(ax, edge_plots_split_path)
 
@@ -528,7 +607,11 @@ for comm_mod in comm_mods:
 
                 _ = corr(x, y, edge_plots_txt_path, covar + '_' + key + '_poly')
 
-                ax = histplot(x, y, xlabel, ylabel)
+                ax = sns.histplot(x = x, y = y, bins = 100, cbar = True,
+                                  cbar_kws = {'label': 'count',
+                                              'orientation': 'vertical'})
+                ax.set(xlabel = xlabel, ylabel = ylabel)
+                ax.set_box_aspect(1)
                 sns.despine(ax = ax)
                 save_plot(ax, poly_split_path)
 
@@ -537,7 +620,11 @@ for comm_mod in comm_mods:
                     filename = covar + '_' + key + '_poly_exp.png'
                     exp_split_path = os.path.join(edge_plots_null_mod_path,
                                                   filename)
-                    ax = histplot(x, y, xlabel, ylabel)
+                    ax = sns.histplot(x = x, y = y, bins = 100, cbar = True,
+                                      cbar_kws = {'label': 'count',
+                                                  'orientation': 'vertical'})
+                    ax.set(xlabel = xlabel, ylabel = ylabel)
+                    ax.set_box_aspect(1)
                     sns.despine(ax = ax)
                     p0 = (-1, -1, ax.get_ylim()[1])
                     exp_curve_fit(x, y, p0, ax, exp_split_path)
@@ -580,13 +667,16 @@ for comm_mod in comm_mods:
         make_dir(null_mod_path)
         for key, value in data_dict[comm_mod].items():
             for dyads in ['all', 'poly']:
-                if (dyads == 'poly' and
-                    (key != '500_discov_wei' or null_mod != 'rand')):
+                if dyads == 'poly' and key != '500_discov_wei':
                     continue
 
-                filename = key + '_cross_networks_heatmap_' + dyads + '.svg'
+                #symmetrise PC1 matrix
+                if comm_mod == 'pc1':
+                    value = (value + value.T)/2
+
+                filename = 'cross_networks_heatmap_' +key+ '_' +dyads+ '.svg'
                 heatmap_split_path = os.path.join(null_mod_path, filename)
-                filename = key + '_signif_diff_heatmap_' + dyads + '.svg'
+                filename = 'signif_diff_heatmap_' + key + '_' + dyads + '.svg'
                 signif_diff_heatmap_split_path = os.path.join(null_mod_path,
                                                               filename)
 
@@ -659,35 +749,29 @@ for comm_mod in comm_mods:
                 fig.savefig(heatmap_split_path, dpi = 300)
                 plt.close(fig)
 
-                if (comm_mod == 'shortest paths' and null_mod == 'rand' and
-                    key == '500_discov_wei'):
+                if comm_mod == 'shortest paths' and key == '500_discov_wei':
                     #matrix of differences of
                     #intra-network mean standardized shortest path lengths
                     diff_matrix = np.zeros((7, 7))
                     #matrix indicating significant differences
                     signif_matrix = np.zeros((7, 7))
                     #pairs of indices of upper triangle
-                    triu_idx = list(zip(*np.triu_indices(7)))
+                    triu_idx = list(zip(*np.triu_indices(7, k = 1)))
                     #Populating differences matrix for each pair of networks
                     for x_idx, y_idx in triu_idx:
 
-                        #same network; null difference
-                        if x_idx == y_idx:
-                            continue
-
                         #intra-network mean standardized shortest path lengths
-                        #of networks y and x
-                        y, x = empirical_dict[columns[nets_reorder_idx][x_idx]], empirical_dict[columns[nets_reorder_idx][y_idx]]
+                        #of networks x and y
+                        x, y = empirical_dict[columns[nets_reorder_idx][x_idx]], empirical_dict[columns[nets_reorder_idx][y_idx]]
 
                         #difference of the means
-                        diff = np.nanmean(x) - np.nanmean(y)
-                        diff_matrix[x_idx, y_idx] = diff
+                        diff = np.nanmean(y) - np.nanmean(x)
                         diff_matrix[y_idx, x_idx] = diff
 
                         #spin null means' differences
                         x_label = yeo_7_labels[nets_reorder_idx][x_idx]
                         y_label = yeo_7_labels[nets_reorder_idx][y_idx]
-                        null_means_diffs = Parallel(n_jobs=2)(delayed(nets_null_means_diff)(yeo_7, null_idx, nodes, x_label, y_label, ordered_val) for null_idx in hungarian_nulls[null_scale].T)
+                        null_means_diffs = Parallel(n_jobs=4)(delayed(nets_null_means_diff)(yeo_7, null_idx, nodes, x_label, y_label, ordered_val) for null_idx in hungarian_nulls[null_scale].T)
                         null_means_diffs = np.array(null_means_diffs)
 
                         suffix = "_{}_{}_{}".format(x_label, y_label, dyads)
@@ -699,7 +783,6 @@ for comm_mod in comm_mods:
                         bonferroni_p = 0.05/((7**2 - 7)/2)
                         #Populating the significant differences matrix
                         if p_spin < bonferroni_p:
-                            signif_matrix[x_idx, y_idx] = 1
                             signif_matrix[y_idx, x_idx] = 1
 
                     #Plotting the differences matrix
@@ -713,7 +796,7 @@ for comm_mod in comm_mods:
 
                     #Outlining the significant cells in purple
                     for x_idx, y_idx in triu_idx:
-                        if signif_matrix[x_idx, y_idx] == 1:
+                        if signif_matrix[y_idx, x_idx] == 1:
                             ax.add_patch(Rectangle((x_idx, y_idx), 1, 1,
                                                    fill = False, lw = 3,
                                                    edgecolor = 'mediumpurple'))
@@ -738,8 +821,7 @@ for comm_mod in comm_mods:
         diff_txt_path = os.path.join(null_mod_path, 'difference.txt')
         for key, value in data_dict[comm_mod].items():
             for dyads in ['all', 'poly']:
-                if (dyads == 'poly' and
-                   (key != '500_discov_wei' or null_mod == 'geo_rand')):
+                if dyads == 'poly' and key != '500_discov_wei':
                     continue
 
                 filename = key + '_' + dyads + '.svg'
@@ -851,16 +933,16 @@ for comm_mod in comm_mods:
     for centrality in x_dicts.keys():
 
         key = '500_discov_wei'
-        value = node_mean_norm_dist_dicts[comm_mod][key]
+        value = node_mean_norm_dist_dicts[comm_mod][key].copy()
 
-        x, y = x_dicts[centrality][key], value
+        x, y = x_dicts[centrality][key].copy(), value
         inf = np.isfinite(x)
-        if centrality == 'log betweenness': x[~inf] = np.nan
+        if centrality == 'log betweenness centrality': x[~inf] = np.nan
 
         spearman_r = corr(x, y, node_plots_txt_path, centrality + '_' + key)
         #Plotting nodal bivariate histogram
         node_plots_split_path = os.path.join(node_plots_comm_mod_path,
-                                             centrality + '_' + key + '.png')
+                                             centrality + '_' + key + '.svg')
         ax = histplot(x, y, centrality, comm_mod_label)
         sns.despine(ax = ax)
         save_plot(ax, node_plots_split_path)
@@ -884,9 +966,11 @@ for comm_mod in comm_mods:
     ns_comm_mod_path = os.path.join(ns_path, comm_mod)
     make_dir(ns_comm_mod_path)
     data_dicts = {'rand': node_mean_norm_dist_dicts,
-                  'geo_rand': node_mean_geo_norm_dist_dicts}
+                  'geo_rand': node_mean_geo_norm_dist_dicts,
+                  'poly_rand': poly_node_mean_dicts['rand'],
+                  'poly_geo_rand': poly_node_mean_dicts['geo_rand']}
     for null_mod, data_dict in data_dicts.items():
-        if comm_mod == 'pc1' and null_mod == 'geo_rand':
+        if comm_mod == 'pc1' and null_mod != 'rand':
             continue
         ns_null_mod_path = os.path.join(ns_comm_mod_path, null_mod)
         make_dir(ns_null_mod_path)
@@ -908,6 +992,7 @@ for comm_mod in comm_mods:
             p_spins = []
             #null nodal standardized path lengths maps
             nulls = value[hungarian_nulls[null_scale]].T
+            nulls = nulls.copy()
             #spin null distributions of Spearman correlations across
             #null nodal standardized path lengths maps and
             #all 123 functional activation maps
@@ -915,7 +1000,7 @@ for comm_mod in comm_mods:
             #Neurosynth map index
             for column in range(len(df.columns)):
                 #nodal standardized path lengths map and Neurosynth map
-                x, y = value, df.loc[df_idx][df.columns[column]].values
+                x, y = value.copy(), df.loc[df_idx][df.columns[column]].values
                 corrs.append(spearmanr(x, y, nan_policy = 'omit')[0])
                 for null in range(len(nulls)):
                     x = nulls[null]
