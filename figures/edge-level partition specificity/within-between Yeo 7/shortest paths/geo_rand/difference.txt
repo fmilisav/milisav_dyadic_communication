@@ -1,1 +1,2 @@
 500_discov_wei_all: difference = 0.46
+500_discov_wei_poly: difference = 0.38
