@@ -479,7 +479,8 @@ for null_mod, data_dict in data_dicts.items():
                                                                     brain_map[:501].copy())
 
             data_kws = {'representation': "wireframe"}
-            brain = plotting.plot_fsaverage(brain_map, vmin = 0, vmax = 1000,
+            brain = plotting.plot_fsaverage(switched_brain_map,
+                                            vmin = 0, vmax = 1000,
                                             lhannot = cammoun500.lh,
                                             rhannot = cammoun500.rh,
                                             colormap = 'OrRd_r',

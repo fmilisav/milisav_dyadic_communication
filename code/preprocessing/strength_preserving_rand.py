@@ -28,7 +28,7 @@ def strength_preserving_rand(A, rewiring_iter = 10, nstage = 100, niter = 10000,
         Fractional decrease in temperature per stage. Default = 0.5.
     energy_type: str, optional
         Energy function to minimize. Can be either:
-            'euclidean': Euclidean distance between strength sequence vectors
+            'euclidean': Sum of squares between strength sequence vectors
                          of the original network and the randomized network
             'max': The single largest value
                    by which the strength sequences deviate
