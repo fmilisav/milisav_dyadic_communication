@@ -444,7 +444,7 @@ def pca_dist_dicts(dist_dicts, level, dir, pca_comm_mods = pca_comm_mods):
             )
 
             fig.write_image(pca_components_path)
-
+            
             #explained variance ratios
             components = np.array(range(len(pca_comm_mods))) + 1
             ax = sns.scatterplot(x = components,

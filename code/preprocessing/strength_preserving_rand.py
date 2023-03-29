@@ -119,7 +119,7 @@ def strength_preserving_rand(A, rewiring_iter = 10, nstage = 100, niter = 10000,
         raise ValueError(msg)
 
     energymin = energy
-    wtsmin = wts
+    wtsmin = wts.copy()
 
     if verbose:
         print('\ninitial energy {:.5f}'.format(energy))
@@ -166,7 +166,7 @@ def strength_preserving_rand(A, rewiring_iter = 10, nstage = 100, niter = 10000,
                 energy = energy_prime
                 if energy < energymin:
                     energymin = energy
-                    wtsmin = wts
+                    wtsmin = wts.copy()
                 naccept = naccept + 1
 
         #temperature update

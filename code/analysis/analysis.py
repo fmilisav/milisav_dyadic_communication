@@ -208,7 +208,9 @@ nets_reorder_idx = [6, 4, 1, 5, 3, 2, 0] #reordering index for Yeo networks
 dyad_label = 'standardized shortest path length'
 for comm_mod in comm_mods:
 
-    mod_matrix_plot_path= os.path.join(matrices_path,comm_mod+'_mod_matrix.png')
+    mod_matrix_plot_path= os.path.join(matrices_path,
+                                       "_".join(comm_mod.split(" ")) +
+                                       '_mod_matrix.png')
 
     idx = partition_yeo_7_dict['idx'][500]
     reorder_idx = partition_yeo_7_dict['reorder_idx'][500]
@@ -238,10 +240,9 @@ for comm_mod in comm_mods:
     mappable.set_xticks([])
     mappable.set_xticklabels([])
 
-    if comm_mod == 'shortest paths': label = 'standardized shortest path length'
-    elif comm_mod == 'pc1': label = 'PC1 score'
+    label = dyad_label if comm_mod == 'shortest paths' else 'PC1 score'
     cb = plt.colorbar(cm.ScalarMappable(norm = norm, cmap = 'RdBu_r'),
-                      ax = mappable, label = dyad_label,
+                      ax = mappable, label = label,
                       orientation = 'horizontal')
     cb.set_ticks([])
     cb.outline.set_visible(False)
@@ -813,6 +814,7 @@ data_dicts = {'rand': norm_dist_dicts, 'geo_rand': geo_norm_dist_dicts}
 for comm_mod in comm_mods:
     comm_mod_path = os.path.join(partition_w_b_path, comm_mod)
     make_dir(comm_mod_path)
+    comm_mod_label = dyad_label if comm_mod == 'shortest paths' else 'PC1 score'
     for null_mod, data_dict in data_dicts.items():
         if comm_mod == 'pc1' and null_mod == 'geo_rand':
             continue
@@ -912,7 +914,7 @@ for comm_mod in comm_mods:
 
                 ax.set_xticks([0, 1])
                 ax.set_xticklabels(['within network', 'between network'])
-                ax.set_ylabel(dyad_label)
+                ax.set_ylabel(comm_mod_label)
                 sns.despine(ax = ax, trim = True)
                 save_plot(ax, split_path)
 
@@ -922,9 +924,9 @@ node_plots_path = os.path.join(dir, 'node-level plots')
 make_dir(node_plots_path)
 
 node_label = 'node-wise mean standardized shortest path length'
-x_dicts = {'weighted degree': strengths_dict,
-           'log betweenness centrality': betweenness_dict,
-           'participation coefficient': participation_dict}
+x_dicts = {'weighted_degree': strengths_dict,
+           'log_betweenness_centrality': betweenness_dict,
+           'participation_coefficient': participation_dict}
 for comm_mod in comm_mods:
     node_plots_comm_mod_path = os.path.join(node_plots_path, comm_mod)
     make_dir(node_plots_comm_mod_path)
@@ -938,13 +940,13 @@ for comm_mod in comm_mods:
 
         x, y = x_dicts[centrality][key].copy(), value
         inf = np.isfinite(x)
-        if centrality == 'log betweenness centrality': x[~inf] = np.nan
+        if centrality == 'log_betweenness_centrality': x[~inf] = np.nan
 
         spearman_r = corr(x, y, node_plots_txt_path, centrality + '_' + key)
         #Plotting nodal bivariate histogram
         node_plots_split_path = os.path.join(node_plots_comm_mod_path,
                                              centrality + '_' + key + '.svg')
-        ax = histplot(x, y, centrality, comm_mod_label)
+        ax = histplot(x, y, " ".join(centrality.split("_")), comm_mod_label)
         sns.despine(ax = ax)
         save_plot(ax, node_plots_split_path)
 
